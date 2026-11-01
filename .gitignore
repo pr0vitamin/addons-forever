@@ -1,0 +1,7 @@
+# Player Modules live outside Harness version control
+/modules/
+
+# Personal agent instructions
+CLAUDE.local.md
+
+.DS_Store
