@@ -21,3 +21,7 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 ## Tests
 
 Run `tests/run.sh` (optionally with a name filter). Tests must pass under macOS's built-in bash 3.2 (`/bin/bash tests/run.sh`) as well as newer bash, because players run sync in Git Bash on Windows or the system bash on macOS. Some tests skip when no Lua interpreter is installed.
+
+## Review
+
+Review every Harness change against `CODING_STANDARDS.md`.
