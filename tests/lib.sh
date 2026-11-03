@@ -2,7 +2,7 @@
 # a fresh temporary folder that is removed afterwards.
 
 setup_tmp() {
-  TMP=$(mktemp -d)
+  TMP=$(mktemp -d "${TMPDIR:-/tmp}/af-test.XXXXXX")
   trap 'rm -rf "$TMP"' EXIT
   ADDONS="$TMP/AddOns"
   MODULES="$TMP/modules"

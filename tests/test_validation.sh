@@ -74,7 +74,7 @@ test_duplicate_ids_ignoring_case_are_reported() {
   add_module Hello Hello Hello.lua
   add_module hello hello hello.lua
   run_sync
-  assert_failed_with 'two addons have the id "hello" (ignoring letter case)'
+  assert_failed_with 'addons "Hello" and "hello" have the same id ignoring letter case'
 }
 
 test_listing_a_file_twice_warns_and_loads_it_once() {
@@ -167,12 +167,27 @@ test_nonexistent_addons_path_is_reported() {
   assert_contains "$TMP/sync.out" 'Interface/AddOns folder inside your WoW install'
 }
 
-test_addons_path_not_ending_in_addons_warns() {
+test_addons_path_not_ending_in_addons_is_refused() {
   mkdir -p "$TMP/Interface"
   printf 'addons_path=%s\n' "$TMP/Interface" > "$CONFIG"
   run_sync
-  assert_sync_ok
+  [ "$SYNC_STATUS" -ne 0 ] || fail "sync should refuse a folder that isn't AddOns"
   assert_contains "$TMP/sync.out" "doesn't end in AddOns"
+  [ ! -e "$TMP/Interface/AddonsForever" ] || fail "sync installed outside an AddOns folder"
+}
+
+test_root_addons_path_is_refused() {
+  printf 'addons_path=/\n' > "$CONFIG"
+  run_sync
+  [ "$SYNC_STATUS" -ne 0 ] || fail "sync should refuse /"
+  assert_contains "$TMP/sync.out" "addons_path (/) doesn't end in AddOns"
+}
+
+test_addons_path_with_several_trailing_slashes() {
+  printf 'addons_path=%s//\n' "$ADDONS" > "$CONFIG"
+  run_sync
+  assert_sync_ok
+  assert_file "$ADDONS/AddonsForever/Bundle.lua"
 }
 
 test_config_tolerates_spaces_around_equals_and_trailing_slash() {
@@ -180,4 +195,88 @@ test_config_tolerates_spaces_around_equals_and_trailing_slash() {
   run_sync
   assert_sync_ok
   assert_file "$ADDONS/AddonsForever/Bundle.lua"
+}
+
+# Encodings and file names ---------------------------------------------------------
+
+BOM=$'\xEF\xBB\xBF'
+
+test_byte_order_mark_in_manifest_is_ignored() {
+  add_module Hello Hello Hello.lua
+  printf '%s## Title: Hello\n## Notes: Has a BOM.\nHello.lua\n' "$BOM" > "$MODULES/Hello/module.toc"
+  run_sync
+  assert_sync_ok
+  assert_contains "$ADDONS/AddonsForever/Bundle.lua" '{ title = "Hello", notes = "Has a BOM." }'
+}
+
+test_byte_order_mark_in_config_is_ignored() {
+  printf '%saddons_path=%s\n' "$BOM" "$ADDONS" > "$CONFIG"
+  run_sync
+  assert_sync_ok
+}
+
+test_byte_order_mark_in_lua_file_is_not_bundled() {
+  add_module Hello Hello Hello.lua
+  printf '%slocal M = AddonsForever:NewModule("Hello")\n' "$BOM" > "$MODULES/Hello/Hello.lua"
+  run_sync
+  assert_sync_ok
+  if grep -qF "$BOM" "$ADDONS/AddonsForever/Bundle.lua"; then
+    fail "Bundle contains a byte-order mark, which loadstring rejects in game"
+  fi
+  local lua
+  lua=$(find_lua) || skip "no Lua interpreter installed"
+  "$lua" "$REPO_ROOT/tests/bundle_roundtrip.lua" "$ADDONS/AddonsForever/Bundle.lua" "$MODULES" \
+    || fail "Bundle code differs from Module sources"
+}
+
+test_file_listed_with_dot_slash_counts_as_duplicate() {
+  add_module Twice Twice Twice.lua
+  printf './Twice.lua\n' >> "$MODULES/Twice/module.toc"
+  run_sync
+  assert_sync_ok
+  assert_contains "$TMP/sync.out" 'lists Twice.lua more than once'
+  [ "$(grep -c 'path = "modules/Twice/' "$ADDONS/AddonsForever/Bundle.lua")" -eq 1 ] || fail "Twice.lua bundled more than once"
+}
+
+test_file_listed_in_other_case_counts_as_duplicate() {
+  add_module Twice Twice Twice.lua
+  [ -f "$MODULES/Twice/twice.lua" ] || skip "this filesystem is case-sensitive, so twice.lua is a different file"
+  printf 'twice.lua\n' >> "$MODULES/Twice/module.toc"
+  run_sync
+  assert_sync_ok
+  assert_contains "$TMP/sync.out" 'lists twice.lua more than once'
+  [ "$(grep -c 'path = "modules/Twice/' "$ADDONS/AddonsForever/Bundle.lua")" -eq 1 ] || fail "Twice.lua bundled more than once"
+}
+
+test_file_with_nul_bytes_is_reported() {
+  add_module Wide Wide Wide.lua
+  printf 'l\000o\000c\000a\000l\000\n\000' > "$MODULES/Wide/Wide.lua"
+  run_sync
+  assert_failed_with 'addon Wide: Wide.lua contains NUL bytes'
+}
+
+test_long_chunk_name_warns() {
+  add_module ExtremelyDescriptiveAddonName Long Deep.lua
+  mkdir -p "$MODULES/ExtremelyDescriptiveAddonName/ui/frames"
+  printf 'local x = 1\n' > "$MODULES/ExtremelyDescriptiveAddonName/ui/frames/CooldownBars.lua"
+  printf 'ui/frames/CooldownBars.lua\n' >> "$MODULES/ExtremelyDescriptiveAddonName/module.toc"
+  run_sync
+  assert_sync_ok
+  assert_contains "$TMP/sync.out" 'is longer than 52 characters'
+  if grep -F 'Deep.lua is longer' "$TMP/sync.out"; then fail "short path warned"; fi
+}
+
+test_syntax_check_names_a_non_5_1_interpreter() {
+  local lua
+  lua=$(find_lua) || skip "no Lua interpreter installed"
+  add_module Hello Hello Hello.lua
+  AF_LUA=$lua run_sync
+  assert_sync_ok
+  if "$lua" -e 'os.exit((not jit and _VERSION == "Lua 5.1") and 0 or 1)'; then
+    if grep -qF "which accepts a few things WoW's Lua 5.1 rejects" "$TMP/sync.out"; then
+      fail "a real Lua 5.1 should not get the warning"
+    fi
+  else
+    assert_contains "$TMP/sync.out" "which accepts a few things WoW's Lua 5.1 rejects"
+  fi
 }

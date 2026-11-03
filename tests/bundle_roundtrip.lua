@@ -16,7 +16,7 @@ AddonsForever = {
   _RegisterModule = function(_, id, _, files)
     for _, file in ipairs(files) do
       local rel = file.path:gsub("^modules/", "")
-      local src = read(modulesDir .. "/" .. rel)
+      local src = read(modulesDir .. "/" .. rel):gsub("^\239\187\191", "")
       if src:sub(-1) ~= "\n" then src = src .. "\n" end
       if file.code ~= src then
         io.stderr:write("mismatch in " .. file.path .. "\n")
