@@ -14,7 +14,7 @@ test_bundle_contains_module_code() {
   run_sync
   assert_sync_ok
   local bundle="$ADDONS/AddonsForever/Bundle.lua"
-  assert_contains "$bundle" 'AddonsForever:_RegisterModule("Hello", { title = "Hello there" }'
+  assert_contains "$bundle" 'AddonsForever:_RegisterModule("Hello", { title = "Hello there", notes = "Test addon Hello." }'
   assert_contains "$bundle" 'path = "modules/Hello/Hello.lua"'
   assert_contains "$bundle" 'local M = AddonsForever:NewModule("Hello")'
   assert_contains "$TMP/sync.out" "synced 1 addon(s)"
