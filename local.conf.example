@@ -1,0 +1,8 @@
+# Addons Forever settings for this computer.
+# Copy this file to local.conf (git ignores it) and fill in addons_path.
+#
+# addons_path is the full path to your World of Warcraft: Forever AddOns folder.
+# Forward or back slashes both work. For example, on Windows:
+#   addons_path=C:/Program Files (x86)/World of Warcraft/_forever_/Interface/AddOns
+# (the exact Forever folder name will be confirmed after launch)
+addons_path=
