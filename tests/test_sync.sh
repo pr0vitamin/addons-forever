@@ -103,3 +103,62 @@ test_code_with_long_brackets_round_trips() {
   "$lua" "$REPO_ROOT/tests/bundle_roundtrip.lua" "$ADDONS/AddonsForever/Bundle.lua" "$MODULES" \
     || fail "Bundle code differs from Module sources"
 }
+
+test_code_with_only_opening_brackets_round_trips() {
+  add_module Opener Opener Opener.lua
+  printf 'local pattern = "[["\n-- a comment mentioning [[ without closing it\n' > "$MODULES/Opener/Opener.lua"
+  run_sync
+  assert_sync_ok
+  if grep -qF 'code = [[' "$ADDONS/AddonsForever/Bundle.lua"; then
+    fail "Bundle uses a level-0 long string, which WoW's Lua 5.1 rejects when the code contains [["
+  fi
+
+  local lua
+  lua=$(find_lua) || skip "no Lua interpreter installed"
+  "$lua" "$REPO_ROOT/tests/bundle_roundtrip.lua" "$ADDONS/AddonsForever/Bundle.lua" "$MODULES" \
+    || fail "Bundle code differs from Module sources"
+}
+
+test_bundle_never_uses_level_zero_long_strings() {
+  add_module Hello Hello Hello.lua
+  add_module Other Other Other.lua
+  run_sync
+  assert_sync_ok
+  if grep -qF 'code = [[' "$ADDONS/AddonsForever/Bundle.lua"; then
+    fail "Bundle uses a level-0 long string"
+  fi
+}
+
+test_quoted_addons_path_is_accepted() {
+  mkdir -p "$TMP/With Spaces/AddOns"
+  printf 'addons_path="%s"\n' "$TMP/With Spaces/AddOns" > "$CONFIG"
+  run_sync
+  assert_sync_ok
+  assert_file "$TMP/With Spaces/AddOns/AddonsForever/Bundle.lua"
+
+  printf "addons_path='%s'\n" "$TMP/With Spaces/AddOns" > "$CONFIG"
+  run_sync
+  assert_sync_ok
+}
+
+test_failed_sync_leaves_addons_folder_untouched() {
+  add_module Bad Bad Bad.lua
+  rm "$MODULES/Bad/Bad.lua"
+  run_sync
+  [ "$SYNC_STATUS" -ne 0 ] || fail "sync should fail when module.toc lists a missing file"
+  assert_contains "$TMP/sync.out" "Bad.lua"
+  [ ! -e "$ADDONS/AddonsForever" ] || fail "a failed sync still changed the AddOns folder"
+}
+
+test_failed_sync_keeps_previous_bundle() {
+  add_module Hello Hello Hello.lua
+  run_sync
+  assert_sync_ok
+  local before
+  before=$(cksum < "$ADDONS/AddonsForever/Bundle.lua")
+  add_module Bad Bad Bad.lua
+  rm "$MODULES/Bad/Bad.lua"
+  run_sync
+  [ "$SYNC_STATUS" -ne 0 ] || fail "sync should fail when module.toc lists a missing file"
+  [ "$(cksum < "$ADDONS/AddonsForever/Bundle.lua")" = "$before" ] || fail "previous Bundle was replaced"
+}

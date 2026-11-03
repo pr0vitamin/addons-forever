@@ -37,10 +37,12 @@ lua_quote() {
   printf '"%s"' "$s"
 }
 
-# The "=" padding for a Lua long bracket that does not occur in FILE.
+# The "=" padding for a Lua long bracket whose opening and closing forms do not
+# occur in FILE. Always at least one "=": WoW's Lua 5.1 rejects any "[[" inside
+# a level-0 "[[ ]]" string, which would stop the whole Bundle from loading.
 long_level() {
-  local file=$1 eq=""
-  while grep -qF -- "]${eq}]" "$file"; do
+  local file=$1 eq="="
+  while grep -qF -e "]${eq}]" -e "[${eq}[" "$file"; do
     eq="${eq}="
   done
   printf '%s' "$eq"
@@ -61,20 +63,20 @@ done
 
 addons_path=$(sed -n 's/^[[:space:]]*addons_path[[:space:]]*=//p' "$CONFIG" | tr -d '\r' | tail -n 1)
 addons_path=$(trim "$addons_path")
+case "$addons_path" in
+  \"*\"|\'*\') addons_path=${addons_path:1:${#addons_path}-2} ;;
+esac
 addons_path=${addons_path//\\//}
 [ -n "$addons_path" ] || die "addons_path is not set in $CONFIG"
 [ -d "$addons_path" ] || die "AddOns folder not found: $addons_path (check addons_path in $CONFIG)"
 
 dest="$addons_path/$HOST_NAME"
 
-# Install the Host ----------------------------------------------------------------
+# Build the Bundle ------------------------------------------------------------------
+# Built before anything in the AddOns folder changes, so a failure leaves the
+# previous install untouched.
 
-mkdir -p "$dest"
-cp -R "$HOST_DIR"/. "$dest"/
-
-# Build the Bundle ----------------------------------------------------------------
-
-tmp="$dest/.Bundle.lua.tmp"
+tmp=$(mktemp "${TMPDIR:-/tmp}/addons-forever-bundle.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 count=0
 
@@ -123,7 +125,12 @@ count=0
   fi
 } > "$tmp"
 
-mv -f "$tmp" "$dest/Bundle.lua"
+# Install the Host and Bundle -----------------------------------------------------
+
+mkdir -p "$dest"
+cp -R "$HOST_DIR"/. "$dest"/
+cp "$tmp" "$dest/.Bundle.lua.new"
+mv -f "$dest/.Bundle.lua.new" "$dest/Bundle.lua"
 
 if [ "$count" -eq 0 ]; then
   note "no addons found in $MODULES_DIR; installed the Host with an empty Bundle."
