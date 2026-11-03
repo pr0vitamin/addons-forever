@@ -103,7 +103,12 @@ function AF:_RegisterModule(id, meta, files)
 end
 
 local function loadModule(reg)
-  local M = setmetatable({ id = reg.id, title = reg.meta.title or reg.id, status = "loading" }, Module)
+  local M = setmetatable({
+    id = reg.id,
+    title = reg.meta.title or reg.id,
+    notes = reg.meta.notes,
+    status = "loading",
+  }, Module)
   modules[reg.id] = M
   table.insert(order, reg.id)
 
