@@ -1,0 +1,4 @@
+## Title: Hello
+## Notes: Says hello when you log in, to show Addons Forever is working.
+
+Hello.lua

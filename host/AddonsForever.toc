@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Addons Forever
+## Notes: Runs the personal addons you build with your AI agent.
+## Author: pr0vitamin
+## Version: 0.1.0
+## SavedVariables: AddonsForeverDB, AddonsForeverLog
+## SavedVariablesPerCharacter: AddonsForeverCharDB
+
+Core.lua
+Bundle.lua
